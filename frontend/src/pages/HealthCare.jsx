@@ -365,6 +365,8 @@ import doc3 from "../assets/img/doc3.jpg";
 import doc4 from "../assets/img/doc4.jpg";
 import doc5 from "../assets/img/doc5.jpg";
 import doc6 from "../assets/img/doc6.jpg";
+import AvailableCamps from "../components/AvailableCamps";
+import OurServices from "../components/OurServices";
 
 const HealthCare = () => {
   const [loading, setLoading] = useState(false);
@@ -449,8 +451,8 @@ const HealthCare = () => {
       <ToastContainer position="top-center" autoClose={2500} />
 
       {/* Home Section */}
-      <div
-        className="flex flex-col justify-center px-5 pt-24 pb-16 text-white bg-center bg-cover"
+      {/* <div
+        className="flex flex-col justify-center px-5 pt-24 pb-16 mt-16 text-white bg-center bg-cover"
         style={{ backgroundImage: `url(${homeBg})` }}
       >
         <motion.div
@@ -463,7 +465,7 @@ const HealthCare = () => {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 1, delay: 0.3 }}
-            className="text-4xl font-bold leading-tight md:text-5xl"
+            className="text-4xl font-bold leading-tight md:text-5xl "
           >
             Empowering Health Choices for a Vibrant Life
           </motion.h1>
@@ -486,10 +488,43 @@ const HealthCare = () => {
             <Button title="See Services" />
           </motion.div>
         </motion.div>
-      </div>
+      </div> */}
+       <div className="min-h-screen flex flex-col justify-center lg:px-32 px-5 text-white bg-[url('assets/img/home.png')] bg-no-repeat bg-cover opacity-90">
+      <motion.div
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8, ease: "easeOut" }}
+        className="w-full mt-10 space-y-5 lg:w-4/5"
+      >
+        <motion.h1
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 1, ease: "easeOut", delay: 0.3 }}
+          className="text-5xl font-bold leading-tight"
+        >
+          Empowering Health Choices for a Vibrant Life
+        </motion.h1>
+
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 1, delay: 0.6 }}
+        >
+          We provide accessible, reliable healthcare services tailored to your well-being. Your health is our top priority — every step of the way.
+        </motion.p>
+
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.6, delay: 0.9 }}
+        >
+          <Button title="See Services" />
+        </motion.div>
+      </motion.div>
+    </div>
 
       {/* About Section */}
-      <div className="flex flex-col items-center justify-between gap-10 px-5 py-16 lg:flex-row lg:px-32">
+      <div className="flex flex-col items-center justify-between gap-10 px-5 py-16 mt-12 lg:flex-row lg:px-32">
         <motion.div
           initial={{ opacity: 0, x: -50 }}
           whileInView={{ opacity: 1, x: 0 }}
@@ -524,7 +559,9 @@ const HealthCare = () => {
       </div>
 
       {/* Services Section */}
-      <div className="flex flex-col justify-center px-5 py-12 lg:px-32">
+       <OurServices/>
+
+      {/* <div className="flex flex-col justify-center px-5 py-12 lg:px-32">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -550,8 +587,19 @@ const HealthCare = () => {
             />
           ))}
         </div>
-      </div>
+      </div> */}
+{/* <h2 className="mb-4 text-4xl font-extrabold tracking-tight text-center text-teal-800 sm:text-5xl">
+  Available Camps
+</h2> */}
 
+<h2 className="mb-4 text-3xl font-bold leading-tight tracking-tight text-center text-gray-800 sm:text-4xl">
+  Available Camps
+</h2>
+<p className="mt-4 text-lg leading-6 text-center text-gray-600"> Explore our various camps offering specialized care, health check-ups, and community support.</p>
+
+
+
+      <AvailableCamps/>
       {/* Doctors Section */}
       <div className="flex flex-col justify-center px-5 py-12 lg:px-32">
         <motion.div

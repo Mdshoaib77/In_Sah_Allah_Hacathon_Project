@@ -1,12 +1,18 @@
 // src/pages/FoodDistribution.jsx
 
 import React from 'react';
+import FoodHero from '../components/FoodDistribution/FoodHero';
+import WhatWeDo from '../components/FoodDistribution/WhatWeDo';
+import FoodDonationPage from '../components/FoodDistribution/FoodDonationPage';
+import CommunityImpact from '../components/FoodDistribution/CommunityImpact';
 
 const FoodDistribution = () => {
   return (
     <div className="p-6">
-      <h1 className="text-3xl font-bold">Free Food Distribution</h1>
-      <p className="mt-4">Learn more about our Free Food Distribution program here.</p>
+        <FoodHero/>
+        <WhatWeDo/>
+        <CommunityImpact/>
+<FoodDonationPage/>
     </div>
   );
 };

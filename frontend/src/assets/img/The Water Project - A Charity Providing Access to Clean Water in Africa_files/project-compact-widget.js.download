@@ -1,0 +1,1915 @@
+/**
+ * The Water Project - Compact Project Card Widget
+ * Simplified, small-footprint fundraising card component
+ * No gallery, no stats, minimal design for sidebars/smaller spaces
+ * Can be embedded with: <script src="/rtf/project-compact-widget.js"></script>
+ */
+
+(function() {
+    'use strict';
+    
+    // Configuration
+    // Single API endpoint that handles routing server-side
+    const API_URL = '/rtf/project-api-router.php';
+    
+    const REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes in milliseconds
+    const WIDGET_ID = 'twp-project-compact-widget';
+    
+    // Create styles if not already present
+    function injectStyles() {
+        if (document.getElementById('twp-compact-widget-styles')) return;
+        
+        const styles = `
+            <style id="twp-compact-widget-styles">
+                /* Import FontAwesome for icons */
+                @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css');
+                
+                /* Import Montserrat from Google Fonts - Design System font */
+                @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@200;300;400;500;600;700&display=swap');
+                
+                /* Compact Widget Container */
+                .twp-compact-container {
+                    /* Use Montserrat as primary font */
+                    font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+                    max-width: 400px;
+                    width: 100%;
+                    margin: 0 auto;
+                    padding: 0;
+                    position: relative;
+                    min-height: 600px; /* Prevent layout shift during loading */
+                    /* Removed contain property to allow modal to escape container */
+                    /* contain: layout style paint; - This was causing modal positioning issues */
+                    will-change: contents; /* Optimize for content changes */
+                    
+                    /* Design System 2025 color tokens */
+                    --brand-blue: #2D6484;
+                    --brand-orange: #D85C27;
+                    --primary: #2D6484;
+                    --accent: #D85C27;
+                    --text-primary: #333;
+                    --text-secondary: #666;
+                    --text-muted: #999;
+                    
+                    /* Surface colors */
+                    --surface: #ffffff;
+                    --surface-elevated: #f8f9fa;
+                    --border: #e0e0e0;
+                    --border-light: #f0f0f0;
+                    
+                    /* Design System 2025 spacing */
+                    --space-xs: 4px;
+                    --space-sm: 8px;
+                    --space-md: 16px;
+                    --space-lg: 24px;
+                    --space-xl: 32px;
+                    --space-2xl: 40px;
+                    --space-3xl: 60px;
+                    
+                    /* Design System 2025 typography */
+                    --font-size-xs: 12px;
+                    --font-size-sm: 14px;
+                    --font-size-base: 16px;
+                    --font-size-lg: 18px;
+                    --font-size-xl: 20px;
+                    --font-size-2xl: 24px;
+                    --font-size-3xl: 28px;
+                    --font-size-4xl: 36px;
+                    
+                    /* Font weights */
+                    --font-weight-normal: 400;
+                    --font-weight-medium: 500;
+                    --font-weight-semibold: 600;
+                    --font-weight-bold: 700;
+                    
+                    /* Line heights */
+                    --line-height-tight: 1.2;
+                    --line-height-snug: 1.3;
+                    --line-height-normal: 1.5;
+                    --line-height-relaxed: 1.6;
+                    
+                    /* Design System 2025 shadows */
+                    --shadow-sm: 0 4px 8px rgba(0, 0, 0, 0.06);
+                    --shadow-md: 0 8px 16px rgba(0, 0, 0, 0.08);
+                    --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.10);
+                    
+                    /* Design System 2025 radius */
+                    --radius-sm: 8px;
+                    --radius-md: 12px;
+                    --radius-lg: 16px;
+                    --radius-xl: 20px;
+                    --radius-full: 9999px;
+                    
+                    /* Container */
+                    --container-max-width: 1200px;
+                    
+                    /* Gradients */
+                    --gradient-primary: linear-gradient(135deg, #2D6484 0%, #4A90E2 100%);
+                    
+                    /* Animation */
+                    --duration-normal: 0.3s;
+                    --duration-slow: 0.5s;
+                    --ease-out: ease-out;
+                    
+                    /* Remove blue background - let page background show through */
+                    background: transparent;
+                }
+                
+                /* FUNDRAISING HERO CARD - New card type for Design System 2025 */
+                .fundraising-compact-card {
+                    background: white;
+                    border-radius: var(--radius-lg, 12px);
+                    overflow: hidden;
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                    border: 1px solid rgba(0, 0, 0, 0.1);
+                    max-width: 100%;
+                    width: 100%;
+                    margin: 0 auto;
+                    position: relative;
+                    min-height: 580px; /* Prevent content jumping */
+                    transition: min-height 0.3s ease;
+                }
+                
+                .fundraising-compact-card__image {
+                    position: relative;
+                    padding-bottom: 56.25%; /* 16:9 aspect ratio */
+                    height: 0;
+                    overflow: hidden;
+                    background: var(--surface-elevated);
+                    aspect-ratio: 16 / 9; /* Modern aspect ratio */
+                }
+                
+                @supports (aspect-ratio: 16 / 9) {
+                    .fundraising-compact-card__image {
+                        padding-bottom: 0;
+                        height: auto;
+                    }
+                }
+                
+                /* Gradient overlay for bottom contrast */
+                .fundraising-compact-card__image::after {
+                    content: '';
+                    position: absolute;
+                    bottom: 0;
+                    left: 0;
+                    right: 0;
+                    height: 60%; /* Cover bottom 60% of image */
+                    background: linear-gradient(to bottom, 
+                        transparent 0%, 
+                        transparent 20%, 
+                        rgba(0, 0, 0, 0.3) 40%,
+                        rgba(0, 0, 0, 0.6) 70%,
+                        rgba(0, 0, 0, 0.8) 100%);
+                    z-index: 2;
+                    pointer-events: none;
+                }
+                
+                /* Progress bar overlay on image */
+                .fundraising-compact-card__image-progress {
+                    position: absolute;
+                    bottom: 20px;
+                    left: 20px;
+                    right: 20px;
+                    z-index: 3;
+                }
+                
+                .fundraising-compact-card__image-progress-bar {
+                    width: 100%;
+                    height: 8px;
+                    background: rgba(255, 255, 255, 0.3);
+                    border-radius: var(--radius-full);
+                    overflow: hidden;
+                    backdrop-filter: blur(10px);
+                }
+                
+                .fundraising-compact-card__image-progress-fill {
+                    height: 100%;
+                    background: rgba(255, 255, 255, 0.9);
+                    transition: width var(--duration-normal, 0.3s) var(--ease-out);
+                    border-radius: var(--radius-full);
+                }
+                
+                .fundraising-compact-card__image-progress-text {
+                    display: flex;
+                    justify-content: space-between;
+                    margin-top: 8px;
+                    font-size: 13px;
+                    color: white;
+                    font-weight: 400;
+                    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+                }
+                
+                .fundraising-compact-card__image img {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    object-fit: cover;
+                    object-position: center;
+                    transition: transform var(--duration-slow, 0.5s) var(--ease-out);
+                }
+                
+                .fundraising-compact-card:hover .fundraising-compact-card__image img {
+                    transform: scale(1.05);
+                }
+                
+                .fundraising-compact-card__badges {
+                    position: absolute;
+                    top: var(--space-md);
+                    left: var(--space-md);
+                    right: var(--space-md);
+                    display: flex;
+                    justify-content: space-between;
+                    z-index: 2;
+                    min-height: 35px; /* Reserve space for badges */
+                }
+                
+                .fundraising-compact-card__badge {
+                    background: rgba(255, 255, 255, 0.95);
+                    backdrop-filter: blur(10px);
+                    padding: 6px 10px;
+                    border-radius: var(--radius-full, 9999px);
+                    display: flex;
+                    align-items: center;
+                    gap: var(--space-xs);
+                    font-size: 12px;
+                    font-weight: 600;
+                    color: var(--text-primary);
+                    box-shadow: var(--shadow-sm);
+                    transition: transform var(--duration-normal) var(--ease-out);
+                    line-height: 1.4;
+                    max-width: calc(65% - 10px);
+                    white-space: normal;
+                    word-break: break-word;
+                    hyphens: auto;
+                }
+                
+                /* Shrink font for very long names */
+                .fundraising-compact-card__badge.long-text {
+                    font-size: 10px;
+                }
+                
+                a.fundraising-compact-card__badge:hover {
+                    transform: scale(1.05);
+                    background: rgba(255, 255, 255, 1);
+                }
+                
+                .fundraising-compact-card__content {
+                    padding: var(--space-md) var(--space-md);
+                    min-height: 320px; /* Reserve space for content */
+                }
+                
+                .fundraising-compact-card__title {
+                    font-size: var(--font-size-lg);
+                    font-weight: var(--font-weight-semibold, 600);
+                    color: var(--primary);
+                    margin: 0 0 var(--space-sm) 0;
+                    line-height: var(--line-height-snug, 1.3);
+                }
+                
+                .fundraising-compact-card__subtitle {
+                    font-size: var(--font-size-sm);
+                    color: var(--text-secondary);
+                    margin: 0 0 var(--space-md) 0;
+                    line-height: var(--line-height-relaxed, 1.6);
+                }
+                
+                .twp-compact-location {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 8px;
+                    background: rgba(45, 100, 132, 0.1);
+                    border-radius: 20px;
+                    padding: 8px 16px;
+                    margin-bottom: 30px;
+                    font-size: 16px;
+                    color: #2D6484;
+                    font-weight: 500;
+                }
+                
+                .twp-country-badge {
+                    position: absolute;
+                    top: 16px;
+                    left: 16px;
+                    background: rgba(255, 255, 255, 0.95);
+                    backdrop-filter: blur(10px);
+                    padding: 8px 12px;
+                    border-radius: 20px;
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                    font-size: 14px;
+                    font-weight: 600;
+                    color: var(--text-primary);
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+                    z-index: 5;
+                }
+                
+                .twp-community-badge {
+                    position: absolute;
+                    bottom: 16px;
+                    left: 16px;
+                    background: rgba(45, 100, 132, 0.95);
+                    backdrop-filter: blur(10px);
+                    padding: 8px 12px;
+                    border-radius: 20px;
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                    font-size: 13px;
+                    font-weight: 600;
+                    color: white;
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                    z-index: 5;
+                    max-width: calc(100% - 32px);
+                }
+                
+                .fundraising-compact-card__stats {
+                    display: grid;
+                    grid-template-columns: repeat(3, 1fr);
+                    gap: var(--space-sm);
+                    margin-bottom: var(--space-md);
+                    padding: var(--space-sm) 0;
+                    border-top: 1px solid var(--border);
+                    border-bottom: 1px solid var(--border);
+                    margin-top: -4px;
+                }
+                
+                .twp-compact-image {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: cover;
+                }
+                
+                .twp-compact-story {
+                    background: white;
+                    border-radius: 12px;
+                    padding: 20px;
+                    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+                    margin-top: -30px;
+                    position: relative;
+                    z-index: 3;
+                }
+                
+                .twp-story-quote {
+                    font-size: 15px;
+                    font-style: italic;
+                    color: var(--text-primary);
+                    margin: 0 0 12px 0;
+                    line-height: 1.5;
+                    position: relative;
+                    padding-left: 30px;
+                }
+                
+                .twp-story-quote:before {
+                    content: '"';
+                    position: absolute;
+                    left: 0;
+                    top: -5px;
+                    font-size: 40px;
+                    color: var(--primary);
+                    opacity: 0.3;
+                }
+                
+                .twp-story-author {
+                    font-size: 13px;
+                    color: var(--text-secondary);
+                    margin: 10px 0;
+                }
+                
+                .fundraising-compact-card__stat {
+                    text-align: center;
+                }
+                
+                .twp-funding-stats {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                    gap: 20px;
+                    margin-bottom: 30px;
+                }
+                
+                .twp-stat {
+                    padding: var(--space-md);
+                    background: rgba(45, 100, 132, 0.05);
+                    border-radius: var(--radius-md);
+                }
+                
+                .fundraising-compact-card__stat-value {
+                    display: block;
+                    font-size: var(--font-size-xl);
+                    font-weight: var(--font-weight-bold, 700);
+                    color: var(--primary);
+                    margin-bottom: 2px;
+                    line-height: 1;
+                }
+                
+                .fundraising-compact-card__stat-label {
+                    font-size: var(--font-size-xs);
+                    color: var(--text-muted, #666);
+                    text-transform: uppercase;
+                    letter-spacing: 0.05em;
+                    line-height: 1.2;
+                }
+                
+                /* Progress section removed - now on image */
+                
+                .fundraising-compact-card__impact {
+                    display: block;
+                    background: var(--surface-elevated, #f8f9fa);
+                    border-radius: var(--radius-sm);
+                    padding: var(--space-sm);
+                    margin: var(--space-sm) 0;
+                }
+                
+                .fundraising-compact-card__impact-icon {
+                    display: none; /* Hide icon in compact version for cleaner look */
+                }
+                
+                .fundraising-compact-card__impact-content {
+                    width: 100%;
+                }
+                
+                .fundraising-compact-card__impact-title {
+                    font-size: var(--font-size-sm);
+                    font-weight: var(--font-weight-semibold);
+                    color: var(--primary);
+                    text-transform: uppercase;
+                    letter-spacing: 0.05em;
+                    margin-bottom: var(--space-sm);
+                }
+                
+                .fundraising-compact-card__impact-text {
+                    font-size: var(--font-size-sm);
+                    line-height: var(--line-height-relaxed);
+                    color: var(--text-primary);
+                }
+                
+                .twp-compact-cta {
+                    margin-top: 20px;
+                }
+                
+                .fundraising-compact-card__cta {
+                    text-align: center;
+                    margin-top: var(--space-md);
+                }
+                
+                .fundraising-compact-card__button {
+                    display: inline-block;
+                    padding: var(--space-md) var(--space-xl);
+                    font-size: var(--font-size-base);
+                    font-weight: var(--font-weight-semibold, 600);
+                    text-align: center;
+                    text-decoration: none;
+                    border-radius: 6px; /* Less rounded corners */
+                    transition: all var(--duration-normal, 0.3s) var(--ease-out);
+                    cursor: pointer;
+                    border: 2px solid transparent;
+                    background: #d75b30;
+                    color: white;
+                    box-shadow: 0 6px 20px rgba(215, 91, 48, 0.3);
+                    width: 100%;
+                    max-width: 320px;
+                }
+                
+                .fundraising-compact-card__button:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 8px 24px rgba(215, 91, 48, 0.4);
+                    background: #c24e26; /* Darker hover state */
+                    text-decoration: none;
+                    color: white;
+                }
+                
+                .fundraising-compact-card__button--small {
+                    padding: 14px 24px; /* Taller button */
+                    font-size: 15px;
+                    max-width: 160px;
+                }
+                
+                .fundraising-compact-card__match-badge {
+                    position: absolute;
+                    bottom: var(--space-md);
+                    right: var(--space-md);
+                    background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+                    color: #333;
+                    padding: var(--space-sm) var(--space-md);
+                    border-radius: var(--radius-full);
+                    font-weight: var(--font-weight-bold);
+                    font-size: var(--font-size-sm);
+                    box-shadow: var(--shadow-md);
+                    z-index: 2;
+                    animation: float 3s ease-in-out infinite;
+                }
+                
+                @keyframes float {
+                    0%, 100% { transform: translateY(0px); }
+                    50% { transform: translateY(-4px); }
+                }
+                
+                /* Mini Gallery */
+                .fundraising-compact-card__gallery {
+                    display: flex;
+                    gap: var(--space-xs);
+                    margin-top: var(--space-lg);
+                    overflow-x: auto;
+                    padding: var(--space-sm) 0;
+                    justify-content: flex-start;
+                    flex-wrap: nowrap; /* Single row only */
+                }
+                
+                .fundraising-compact-card__gallery-thumb {
+                    width: 55px;
+                    height: 55px;
+                    flex: 0 0 55px;
+                    border-radius: var(--radius-sm);
+                    overflow: hidden;
+                    cursor: pointer;
+                    transition: all var(--duration-normal) var(--ease-out);
+                    border: 2px solid transparent;
+                    position: relative;
+                }
+                
+                .fundraising-compact-card__gallery-thumb:hover:not(.active) {
+                    transform: scale(1.05);
+                    border-color: var(--primary);
+                }
+                
+                .fundraising-compact-card__gallery-thumb.active {
+                    opacity: 0.5;
+                    border-color: var(--primary);
+                    cursor: pointer;
+                }
+                
+                .fundraising-compact-card__gallery-thumb.active::after {
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: rgba(45, 100, 132, 0.2);
+                    pointer-events: none;
+                }
+                
+                .fundraising-compact-card__gallery-thumb img {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: cover;
+                }
+                
+                .twp-loading {
+                    text-align: center;
+                    padding: 40px;
+                    color: white;
+                    min-height: 580px;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                }
+                
+                .twp-loading-spinner {
+                    display: inline-block;
+                    width: 40px;
+                    height: 40px;
+                    border: 3px solid rgba(255, 255, 255, 0.2);
+                    border-radius: 50%;
+                    border-top-color: rgba(255, 255, 255, 0.9);
+                    animation: twp-spin 1s ease-in-out infinite;
+                }
+                
+                @keyframes twp-spin {
+                    to { transform: rotate(360deg); }
+                }
+                
+                .twp-error {
+                    text-align: center;
+                    padding: 30px;
+                    color: #d75b30;
+                    background: rgba(215, 91, 48, 0.05);
+                    border-radius: 12px;
+                    border: 1px solid rgba(215, 91, 48, 0.2);
+                }
+                
+                
+                /* Story quote section - following hero-card pattern */
+                .fundraising-compact-card__story {
+                    background: var(--primary);
+                    background: var(--gradient-primary, linear-gradient(135deg, #2D6484 0%, #4A90E2 100%));
+                    color: white;
+                    padding: var(--space-md);
+                    border-radius: var(--radius-md);
+                    margin: var(--space-sm) 0;
+                    position: relative;
+                }
+                
+                .fundraising-compact-card__story::before {
+                    content: '"';
+                    position: absolute;
+                    top: -10px;
+                    left: 16px;
+                    font-size: 60px;
+                    opacity: 0.3;
+                    font-family: Georgia, serif;
+                }
+                
+                .fundraising-compact-card__story-quote {
+                    font-size: var(--font-size-base);
+                    font-style: italic;
+                    line-height: var(--line-height-relaxed);
+                    margin-bottom: var(--space-sm);
+                }
+                
+                .fundraising-compact-card__story-author {
+                    font-size: var(--font-size-sm);
+                    opacity: 0.9;
+                    text-align: right;
+                }
+                
+                /* Responsive Design - Mobile First */
+                @media (max-width: 767px) {
+                    .twp-compact-container {
+                        padding: 0;
+                    }
+                    
+                    .fundraising-compact-card {
+                        max-width: 100%;
+                    }
+                    
+                    .fundraising-compact-card__content {
+                        padding: var(--space-lg) var(--space-md);
+                    }
+                    
+                    .fundraising-compact-card__stats {
+                        grid-template-columns: repeat(3, 1fr);
+                        gap: var(--space-xs);
+                        padding: var(--space-sm) 0;
+                    }
+                    
+                    .fundraising-compact-card__stat-value {
+                        font-size: var(--font-size-lg);
+                    }
+                    
+                    .fundraising-compact-card__stat-label {
+                        font-size: 10px;
+                    }
+                    
+                    /* Mobile keeps 16:9 aspect ratio */
+                }
+                
+                @media (min-width: 768px) {
+                    .twp-compact-container {
+                        padding: 0;
+                    }
+                    
+                    /* Keep stacked layout - no grid columns */
+                    .fundraising-compact-card {
+                        display: block;
+                    }
+                    
+                    .fundraising-compact-card__image {
+                        padding-bottom: 56.25%; /* Maintain 16:9 aspect ratio */
+                        height: 0;
+                    }
+                    
+                    .fundraising-compact-card__content {
+                        padding: var(--space-lg);
+                    }
+                    
+                    .fundraising-compact-card__title {
+                        font-size: var(--font-size-xl);
+                    }
+                    
+                    .fundraising-compact-card__subtitle {
+                        font-size: var(--font-size-sm);
+                    }
+                    
+                    .fundraising-compact-card__stats {
+                        grid-template-columns: repeat(3, 1fr);
+                        padding: var(--space-sm) 0;
+                    }
+                    
+                    .fundraising-compact-card__stat-value {
+                        font-size: var(--font-size-lg);
+                    }
+                    
+                    .fundraising-compact-card__stat-label {
+                        font-size: 9px;
+                    }
+                    
+                    .fundraising-compact-card__impact {
+                        padding: var(--space-sm);
+                        margin: var(--space-sm) 0;
+                    }
+                    
+                    .fundraising-compact-card__impact-text {
+                        font-size: 12px;
+                    }
+                    
+                    .fundraising-compact-card__story {
+                        padding: var(--space-md);
+                        margin: var(--space-sm) 0;
+                    }
+                    
+                    .fundraising-compact-card__story-quote {
+                        font-size: var(--font-size-sm);
+                    }
+                    
+                    .fundraising-compact-card__gallery {
+                        margin-top: var(--space-md);
+                    }
+                }
+                
+                /* Removed @media (min-width: 1024px) to keep widget at medium size on large screens */
+                
+                /* Modal Styles */
+                .twp-project-modal {
+                    display: none;
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    z-index: 10000;
+                }
+                
+                .twp-project-modal.active {
+                    display: block;
+                }
+                
+                .twp-modal-backdrop {
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0, 0, 0, 0.8);
+                    backdrop-filter: blur(5px);
+                    animation: fadeIn 0.3s ease-out;
+                    z-index: 10000; /* Ensure backdrop is above everything */
+                }
+                
+                .twp-modal-content {
+                    position: fixed;
+                    top: 120px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    background: white;
+                    border-radius: 16px;
+                    max-width: 650px; /* Narrower for better image aspect */
+                    width: 90%;
+                    max-height: calc(100vh - 160px);
+                    height: auto;
+                    z-index: 10001; /* Ensure content is above backdrop */
+                    overflow: hidden;
+                    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+                    animation: modalSlideIn 0.25s ease-out;
+                }
+                
+                .twp-modal-close {
+                    position: absolute;
+                    top: 15px;
+                    right: 15px;
+                    width: 36px;
+                    height: 36px;
+                    border-radius: 50%;
+                    background: rgba(255, 255, 255, 0.95);
+                    border: none;
+                    cursor: pointer;
+                    z-index: 2;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 24px;
+                    color: #333;
+                    transition: all 0.2s;
+                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+                }
+                
+                .twp-modal-close:hover {
+                    background: white;
+                    transform: scale(1.1);
+                }
+                
+                .twp-modal-body {
+                    display: flex;
+                    flex-direction: column;
+                    max-height: calc(100vh - 160px);
+                    overflow: hidden;
+                }
+                
+                .twp-modal-image-container {
+                    position: relative;
+                    height: 250px; /* Reduced height for narrower modal */
+                    overflow: visible; /* Allow map overlay */
+                    flex-shrink: 0;
+                }
+                
+                /* Map overlay position in modal */
+                .twp-modal-image-container .twp-map-mini {
+                    bottom: 20px;
+                    right: 20px;
+                    left: auto;
+                    width: 80px;
+                    height: 80px;
+                }
+                
+                .twp-modal-image {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: cover;
+                }
+                
+                .twp-modal-type-icon {
+                    position: absolute;
+                    bottom: 20px;
+                    right: 20px;
+                    width: 60px;
+                    height: 60px;
+                    background: rgba(255, 255, 255, 0.95);
+                    border-radius: 12px;
+                    padding: 12px;
+                    z-index: 1;
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+                }
+                
+                .twp-modal-type-icon img {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: contain;
+                }
+                
+                /* Map styles */
+                .twp-map-mini {
+                    position: absolute;
+                    bottom: 80px; /* Position above progress bar */
+                    right: 20px; /* Move to right side */
+                    width: 100px;
+                    height: 100px;
+                    background: rgba(255, 255, 255, 0.95);
+                    border-radius: 12px;
+                    overflow: hidden;
+                    z-index: 4; /* Above other elements */
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+                    cursor: pointer;
+                    transition: transform 0.2s ease;
+                    border: 2px solid rgba(255, 255, 255, 0.9);
+                }
+                
+                .twp-map-mini:hover {
+                    transform: scale(1.05);
+                }
+                
+                .twp-map-mini img {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: cover;
+                }
+                
+                .twp-map-popup {
+                    display: none;
+                    position: fixed;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    width: 90%;
+                    max-width: 500px;
+                    height: 400px;
+                    background: white;
+                    border-radius: 16px;
+                    z-index: 10001;
+                    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+                    overflow: hidden;
+                    animation: modalFadeIn 0.25s ease-out;
+                }
+                
+                .twp-map-popup.active {
+                    display: block;
+                }
+                
+                .twp-map-popup-backdrop {
+                    display: none;
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0, 0, 0, 0.6);
+                    backdrop-filter: blur(3px);
+                    z-index: 10000;
+                }
+                
+                .twp-map-popup-backdrop.active {
+                    display: block;
+                }
+                
+                .twp-map-popup-close {
+                    position: absolute;
+                    top: 10px;
+                    right: 10px;
+                    width: 30px;
+                    height: 30px;
+                    background: rgba(255, 255, 255, 0.9);
+                    border: none;
+                    border-radius: 50%;
+                    cursor: pointer;
+                    z-index: 2;
+                    font-size: 20px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+                }
+                
+                .twp-map-popup-close:hover {
+                    background: white;
+                    transform: scale(1.1);
+                }
+                
+                .twp-map-popup img {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: cover;
+                }
+                
+                .twp-modal-text-content {
+                    padding: 30px;
+                    overflow-y: auto;
+                    flex: 1;
+                }
+                
+                .twp-modal-title {
+                    font-size: 28px;
+                    font-weight: 600;
+                    color: var(--primary);
+                    margin: 0 0 20px 0;
+                    line-height: 1.2;
+                }
+                
+                .twp-modal-description {
+                    font-size: 15px;
+                    line-height: 1.8;
+                    color: #333;
+                    text-align: left;
+                    margin-bottom: 30px;
+                }
+                
+                .twp-modal-description p {
+                    margin: 0 0 16px 0;
+                    text-align: left;
+                }
+                
+                .twp-modal-description ul,
+                .twp-modal-description ol {
+                    margin: 0 0 16px 0;
+                    padding-left: 24px;
+                }
+                
+                .twp-modal-description li {
+                    margin-bottom: 8px;
+                }
+                
+                .twp-modal-description h3,
+                .twp-modal-description h4 {
+                    margin: 24px 0 12px 0;
+                    color: var(--primary);
+                    font-weight: 600;
+                }
+                
+                .twp-modal-description strong {
+                    color: #222;
+                    font-weight: 600;
+                }
+                
+                .twp-modal-description a {
+                    color: var(--primary);
+                    text-decoration: underline;
+                    text-underline-offset: 2px;
+                }
+                
+                .twp-modal-description a:hover {
+                    color: var(--primary-dark, #1e4d6b);
+                    text-decoration-thickness: 2px;
+                }
+                
+                .twp-modal-description img {
+                    max-width: 100%;
+                    height: auto;
+                    display: block;
+                    margin: 16px auto;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                }
+                
+                .twp-modal-description figure {
+                    margin: 16px 0;
+                    text-align: center;
+                }
+                
+                .twp-modal-description figcaption {
+                    font-size: 13px;
+                    color: #666;
+                    margin-top: 8px;
+                    font-style: italic;
+                }
+                
+                .twp-modal-description blockquote {
+                    border-left: 3px solid var(--primary);
+                    padding-left: 16px;
+                    margin: 16px 0;
+                    font-style: italic;
+                    color: #555;
+                }
+                
+                .twp-modal-description table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin: 16px 0;
+                }
+                
+                .twp-modal-description th,
+                .twp-modal-description td {
+                    padding: 8px;
+                    border: 1px solid #ddd;
+                    text-align: left;
+                }
+                
+                .twp-modal-description th {
+                    background: #f5f5f5;
+                    font-weight: 600;
+                }
+                
+                .twp-modal-description br + br {
+                    display: block;
+                    content: "";
+                    margin-top: 12px;
+                }
+                
+                .twp-modal-actions {
+                    display: flex;
+                    gap: 12px;
+                    padding-top: 20px;
+                    border-top: 1px solid #e5e5e5;
+                }
+                
+                .twp-modal-btn {
+                    padding: 12px 24px;
+                    border-radius: 6px;
+                    font-size: 14px;
+                    font-weight: 600;
+                    text-decoration: none;
+                    transition: all 0.2s;
+                    cursor: pointer;
+                    border: none;
+                    display: inline-block;
+                    text-align: center;
+                    flex: 1;
+                }
+                
+                .twp-modal-btn-primary {
+                    background: var(--primary, #2D6484);
+                    color: white !important;
+                }
+                
+                .twp-modal-btn-primary:hover {
+                    background: var(--primary-dark, #1e4d6b);
+                    transform: translateY(-1px);
+                    box-shadow: 0 4px 12px rgba(45, 100, 132, 0.3);
+                    color: white !important;
+                    text-decoration: none;
+                }
+                
+                .twp-modal-btn-secondary {
+                    background: white;
+                    color: #666;
+                    border: 1px solid #ddd;
+                }
+                
+                .twp-modal-btn-secondary:hover {
+                    background: #f5f5f5;
+                    border-color: #999;
+                    color: #333;
+                }
+                
+                @keyframes fadeIn {
+                    from { opacity: 0; }
+                    to { opacity: 1; }
+                }
+                
+                @keyframes modalSlideIn {
+                    from {
+                        opacity: 0;
+                        transform: translateX(-50%) translateY(-20px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateX(-50%) translateY(0);
+                    }
+                }
+                
+                /* Scrollbar styling */
+                .twp-modal-text-content::-webkit-scrollbar {
+                    width: 6px;
+                }
+                
+                .twp-modal-text-content::-webkit-scrollbar-track {
+                    background: #f1f1f1;
+                    border-radius: 3px;
+                }
+                
+                .twp-modal-text-content::-webkit-scrollbar-thumb {
+                    background: #888;
+                    border-radius: 3px;
+                }
+                
+                .twp-modal-text-content::-webkit-scrollbar-thumb:hover {
+                    background: #555;
+                }
+                
+                @media (max-width: 767px) {
+                    .twp-modal-content {
+                        width: 95%;
+                        max-width: none;
+                        max-height: calc(100vh - 140px);
+                        top: 100px;
+                    }
+                    
+                    .twp-modal-image-container {
+                        height: 200px;
+                    }
+                    
+                    .twp-modal-text-content {
+                        padding: 20px;
+                    }
+                    
+                    .twp-modal-title {
+                        font-size: 22px;
+                    }
+                    
+                    .twp-modal-actions {
+                        flex-direction: column;
+                    }
+                    
+                    .twp-modal-btn {
+                        width: 100%;
+                    }
+                }
+            </style>
+        `;
+        
+        document.head.insertAdjacentHTML('beforeend', styles);
+    }
+    
+    // Get country flag icon based on country name
+    function getCountryFlag(country) {
+        // Use actual emoji flags for each country
+        const flags = {
+            'Kenya': '🇰🇪',
+            'Sierra Leone': '🇸🇱',
+            'Uganda': '🇺🇬',
+            'Rwanda': '🇷🇼',
+            'Malawi': '🇲🇼'
+        };
+        return flags[country] || '🏳️';
+    }
+    
+    // Extract image URL from description HTML
+    function extractImageUrl(description) {
+        if (!description) return null;
+        
+        // Try to find Cloudinary image URL
+        const cloudinaryMatch = description.match(/https:\/\/res\.cloudinary\.com[^"'\s]+/);
+        if (cloudinaryMatch) {
+            // Optimize the Cloudinary URL for card display
+            let url = cloudinaryMatch[0];
+            // Replace any existing transformations with our optimized ones
+            url = url.replace(/\/upload\/[^\/]*\//, '/upload/c_fill,g_auto,q_auto:eco,f_auto,w_400,h_300/');
+            return url;
+        }
+        
+        // Try to find any image URL
+        const imgMatch = description.match(/<img[^>]+src=["']([^"']+)["']/);
+        if (imgMatch) {
+            return imgMatch[1];
+        }
+        
+        return null;
+    }
+    
+    // Clean HTML from description
+    function cleanDescription(html) {
+        if (!html) return '';
+        
+        // Create a temporary element to parse HTML
+        const temp = document.createElement('div');
+        temp.innerHTML = html;
+        
+        // Get text content and limit length
+        let text = temp.textContent || temp.innerText || '';
+        
+        // Clean up extra whitespace
+        text = text.replace(/\s+/g, ' ').trim();
+        
+        // Limit to reasonable length for card
+        if (text.length > 200) {
+            text = text.substring(0, 197) + '...';
+        }
+        
+        return text;
+    }
+    
+    // Format date
+    function formatDate(dateString) {
+        if (!dateString) return new Date().getFullYear();
+        const date = new Date(dateString);
+        return date.getFullYear();
+    }
+    
+    // Format number with commas
+    function numberWithCommas(x) {
+        return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    }
+    
+    // Optimize image URL with Cloudinary
+    function optimizeImageUrl(originalUrl) {
+        if (!originalUrl) return '/images/well-placeholder.jpg';
+        
+        // Check if it's already a Cloudinary URL
+        if (originalUrl.includes('res.cloudinary.com')) {
+            // Extract the image path after /upload/
+            const parts = originalUrl.split('/upload/');
+            if (parts.length > 1) {
+                const imagePath = parts[1].replace(/^[^/]+\//, ''); // Remove any existing transformations
+                return `https://res.cloudinary.com/the-water-project/image/upload/c_fill,dpr_auto,g_auto,q_auto:eco,f_auto,w_250,h_180/${imagePath}`;
+            }
+        }
+        
+        // If it's a WordPress upload URL, convert to Cloudinary
+        if (originalUrl.includes('/wp-content/uploads/')) {
+            const match = originalUrl.match(/\/wp-content\/uploads\/(.+)/);
+            if (match) {
+                const imagePath = match[1].replace(/\-\d+x\d+(\.\w+)$/, '$1'); // Remove WP size suffix
+                return `https://res.cloudinary.com/the-water-project/image/upload/c_fill,dpr_auto,g_auto,q_auto:eco,f_auto,w_250,h_180/WP-Uploads/community/wp-content/uploads/${imagePath}`;
+            }
+        }
+        
+        // For local images, add full path
+        if (!originalUrl.startsWith('http')) {
+            return 'https://thewaterproject.org' + originalUrl;
+        }
+        
+        return originalUrl;
+    }
+    
+    // Create srcset for responsive images
+    function createSrcset(baseUrl) {
+        if (!baseUrl.includes('res.cloudinary.com')) return '';
+        
+        // Extract base path and create different sizes
+        const parts = baseUrl.split('/upload/');
+        if (parts.length > 1) {
+            const basePath = parts[0] + '/upload/';
+            const imagePath = parts[1].replace(/[^\/]+\//, ''); // Remove transformation params
+            
+            return `
+                ${basePath}c_fill,dpr_1.0,g_auto,q_auto:eco,f_auto,w_250,h_180/${imagePath} 1x,
+                ${basePath}c_fill,dpr_1.5,g_auto,q_auto:eco,f_auto,w_250,h_180/${imagePath} 1.5x,
+                ${basePath}c_fill,dpr_2.0,g_auto,q_auto:eco,f_auto,w_250,h_180/${imagePath} 2x
+            `.trim();
+        }
+        return '';
+    }
+    
+    // Extract story from description
+    function extractStory(description) {
+        if (!description) return null;
+        
+        // Look for Moses's quote in the description
+        const quoteMatch = description.match(/["""]([^"""]*water is life[^"""]*)["""]/i);
+        if (quoteMatch) {
+            return {
+                quote: quoteMatch[1],
+                author: "Moses Ngonde, 75-year-old farmer"
+            };
+        }
+        
+        // Fallback to finding any quote
+        const anyQuoteMatch = description.match(/["""]([^"""]{50,300})["""]/);
+        if (anyQuoteMatch) {
+            return {
+                quote: anyQuoteMatch[1],
+                author: "Community Member"
+            };
+        }
+        
+        return null;
+    }
+    
+    // Create fundraising hero card HTML following Design System 2025 patterns
+    function createHeroHTML(project) {
+        console.log('=== MAP DEBUG ===');
+        console.log('Full project object:', project);
+        console.log('Project keys:', Object.keys(project));
+        console.log('Latitude value:', project.latitude, 'Type:', typeof project.latitude);
+        console.log('Longitude value:', project.longitude, 'Type:', typeof project.longitude);
+        
+        // Get primary image with hero optimization
+        const rawImageUrl = project.project_photo_url || 
+                          (project.gallery && project.gallery[0]?.src) ||
+                          extractImageUrl(project.project_description) || 
+                          '/images/well-placeholder.jpg';
+        
+        // Optimize for hero size - handle WordPress URLs
+        let heroImageUrl = rawImageUrl;
+        if (rawImageUrl.includes('thewaterproject.org/community/wp-content/uploads/')) {
+            const match = rawImageUrl.match(/wp-content\/uploads\/(.+)/);
+            if (match) {
+                const imagePath = match[1].replace(/\-\d+x\d+(\.\w+)$/, '$1');
+                heroImageUrl = `https://res.cloudinary.com/the-water-project/image/upload/c_fill,g_auto,q_auto:good,f_auto,w_1200,h_600/WP-Uploads/community/wp-content/uploads/${imagePath}`;
+            }
+        } else if (rawImageUrl.includes('cloudinary')) {
+            heroImageUrl = rawImageUrl.replace(/\/upload\/[^\/]*\//, '/upload/c_fill,g_auto,q_auto:good,f_auto,w_1200,h_600/');
+        }
+        
+        // Create unique widget ID for this instance
+        const widgetInstanceId = 'widget-' + Math.random().toString(36).substr(2, 9);
+        
+        // Decode double-escaped HTML entities
+        function decodeHTML(html) {
+            if (!html) return 'No description available.';
+            
+            // First decode: handles &lt; &gt; &quot; etc.
+            const txt = document.createElement('textarea');
+            txt.innerHTML = html;
+            let decoded = txt.value;
+            
+            // Second decode: in case of double encoding
+            txt.innerHTML = decoded;
+            decoded = txt.value;
+            
+            // Replace escaped slashes
+            decoded = decoded.replace(/\\\//g, '/');
+            
+            return decoded;
+        }
+        
+        const projectDescription = decodeHTML(project.project_description);
+        
+        // Store the original main image for gallery swap
+        let originalThumb = rawImageUrl;
+        if (rawImageUrl.includes('thewaterproject.org/community/wp-content/uploads/')) {
+            const match = rawImageUrl.match(/wp-content\/uploads\/(.+)/);
+            if (match) {
+                const imagePath = match[1].replace(/\-\d+x\d+(\.\w+)$/, '$1');
+                originalThumb = `https://res.cloudinary.com/the-water-project/image/upload/c_fill,dpr_auto,g_auto,q_auto:eco,f_auto,w_60,h_60/WP-Uploads/community/wp-content/uploads/${imagePath}`;
+            }
+        } else if (rawImageUrl.includes('cloudinary')) {
+            originalThumb = rawImageUrl.replace(/\/upload\/[^\/]*\//, '/upload/c_fill,dpr_auto,g_auto,q_auto:eco,f_auto,w_60,h_60/');
+        }
+        
+        const originalMainImage = {
+            src: rawImageUrl,
+            thumb: originalThumb
+        };
+        
+        const countryFlag = getCountryFlag(project.countryName);
+        
+        // Calculate funding values
+        const fundedPercent = Math.round(project.funding?.funded_percent || 0);
+        const fundsNeeded = project.funding?.funds_needed || 0;
+        const fundsNeededFormatted = numberWithCommas(Math.round(fundsNeeded));
+        const totalRaised = project.funding?.total_raised || 0;
+        const totalRaisedFormatted = numberWithCommas(Math.round(totalRaised));
+        const grantAmount = project.funding?.grant_amt || 0;
+        const grantAmountFormatted = numberWithCommas(Math.round(grantAmount));
+        
+        // Get project type name
+        const projectType = (project.projectTypeName || 'Water Project').toLowerCase();
+        
+        // Build donation URL
+        const donationUrl = `${project.project_url}?form=fund-a-project&ProjectID=${project.projectid}`;
+        
+        // Check for match status
+        const isAccelerated = project.accelerated || false;
+        const matchBadge = isAccelerated ? 
+            '<div class="twp-match-badge">🎁 2X MATCH ACTIVE</div>' : '';
+        
+        // Extract story/quote
+        const story = extractStory(project.project_description);
+        
+        // Get gallery images (limit to 5) and add original main image
+        let galleryImages = project.gallery ? project.gallery.slice(0, 5) : [];
+        
+        // Create swap function immediately as part of HTML generation
+        // This needs to be available when the HTML is inserted into DOM
+        const swapFunctionName = `swapGalleryImage_${widgetInstanceId}`;
+        
+        // Store the original main image for restoration
+        let activeThumbIndex = -1;
+        let originalMainSrc = rawImageUrl;
+        let originalMainThumb = originalThumb;
+        
+        // Define the swap function in the global scope
+        window[swapFunctionName] = function(newSrc, newThumb, clickedIndex) {
+            const widget = document.getElementById(widgetInstanceId);
+            if (!widget) return;
+            
+            // Get all thumbnails
+            const allThumbs = widget.querySelectorAll('.fundraising-compact-card__gallery-thumb');
+            const clickedThumb = allThumbs[clickedIndex];
+            
+            // Check if clicking on the active thumbnail (to restore)
+            if (clickedThumb && clickedThumb.classList.contains('active')) {
+                // Restore original main image
+                const mainImg = widget.querySelector('.fundraising-compact-card__image img');
+                if (mainImg) {
+                    let optimizedOriginal = originalMainSrc;
+                    if (originalMainSrc.includes('res.cloudinary.com')) {
+                        optimizedOriginal = originalMainSrc.replace(/\/upload\/[^\/]*\//, '/upload/c_fill,g_auto,q_auto:good,f_auto,w_1200,h_600/');
+                    } else if (originalMainSrc.includes('thewaterproject.org/community/wp-content/uploads/')) {
+                        const match = originalMainSrc.match(/wp-content\/uploads\/(.+)/);
+                        if (match) {
+                            const imagePath = match[1].replace(/\-\d+x\d+(\.\w+)$/, '$1');
+                            optimizedOriginal = `https://res.cloudinary.com/the-water-project/image/upload/c_fill,g_auto,q_auto:good,f_auto,w_1200,h_600/WP-Uploads/community/wp-content/uploads/${imagePath}`;
+                        }
+                    }
+                    mainImg.src = optimizedOriginal;
+                    mainImg.setAttribute('data-original-src', originalMainSrc);
+                    mainImg.setAttribute('data-thumb-src', originalMainThumb);
+                }
+                
+                // Remove active state
+                clickedThumb.classList.remove('active');
+                activeThumbIndex = -1;
+                return;
+            }
+            
+            // Clear any existing active state
+            allThumbs.forEach(thumb => thumb.classList.remove('active'));
+            
+            // Get current main image
+            const mainImg = widget.querySelector('.fundraising-compact-card__image img');
+            if (!mainImg) return;
+            
+            // Get current main image URL
+            const currentMainSrc = mainImg.getAttribute('data-original-src') || rawImageUrl;
+            const currentMainThumb = mainImg.getAttribute('data-thumb-src') || originalMainImage.thumb;
+            
+            // Update main image - ensure it uses hero-size optimization
+            let optimizedNewSrc = newSrc;
+            if (newSrc.includes('res.cloudinary.com')) {
+                optimizedNewSrc = newSrc.replace(/\/upload\/[^\/]*\//, '/upload/c_fill,g_auto,q_auto:good,f_auto,w_1200,h_600/');
+            } else if (newSrc.includes('thewaterproject.org/community/wp-content/uploads/')) {
+                const match = newSrc.match(/wp-content\/uploads\/(.+)/);
+                if (match) {
+                    const imagePath = match[1].replace(/\-\d+x\d+(\.\w+)$/, '$1');
+                    optimizedNewSrc = `https://res.cloudinary.com/the-water-project/image/upload/c_fill,g_auto,q_auto:good,f_auto,w_1200,h_600/WP-Uploads/community/wp-content/uploads/${imagePath}`;
+                }
+            }
+            mainImg.src = optimizedNewSrc;
+            mainImg.setAttribute('data-original-src', newSrc);
+            mainImg.setAttribute('data-thumb-src', newThumb);
+            
+            // Mark clicked thumbnail as active
+            if (clickedThumb) {
+                clickedThumb.classList.add('active');
+                activeThumbIndex = clickedIndex;
+                
+                // Don't swap the image in the thumbnail - keep it greyed out
+                // The thumbnail keeps its original image to show what it represents
+            }
+        };
+        
+        return `
+            <div class="fundraising-compact-card" id="${widgetInstanceId}">
+                <!-- Hero image with badge overlays and progress bar -->
+                <div class="fundraising-compact-card__image" 
+                     onclick="window['openProjectModal_${widgetInstanceId}'](event)"
+                     style="cursor: pointer;">
+                    <div class="fundraising-compact-card__badges">
+                        <a href="#" 
+                           class="fundraising-compact-card__badge"
+                           onclick="event.preventDefault(); event.stopPropagation(); window['openMapModal_${widgetInstanceId}'](event);"
+                           style="text-decoration: none; color: var(--text-primary); cursor: pointer;"
+                           title="View on map">
+                            ${countryFlag} ${project.countryName}
+                        </a>
+                        <a href="#" 
+                           class="fundraising-compact-card__badge ${project.project_name.length > 25 ? 'long-text' : ''}"
+                           onclick="event.preventDefault(); event.stopPropagation(); window['openProjectModal_${widgetInstanceId}'](event);"
+                           style="text-decoration: none; color: var(--text-primary); cursor: pointer;">
+                            <i class="fa fa-map-marker-alt"></i> ${project.project_name}
+                        </a>
+                    </div>
+                    <a href="${project.project_url}" 
+                       style="display: block; width: 100%; height: 100%;">
+                        <img 
+                            src="${heroImageUrl}" 
+                            alt="${project.project_name}"
+                            data-original-src="${rawImageUrl}"
+                            data-thumb-src="${originalMainImage.thumb}"
+                            loading="eager"
+                            width="400"
+                            height="225"
+                            style="width: 100%; height: auto; aspect-ratio: 16/9; object-fit: cover;">
+                    </a>
+                    ${isAccelerated ? '<div class="fundraising-compact-card__match-badge">🎁 2X MATCH</div>' : ''}
+                    
+                    <!-- Progress bar overlay on image -->
+                    <div class="fundraising-compact-card__image-progress">
+                        <div class="fundraising-compact-card__image-progress-bar">
+                            <div class="fundraising-compact-card__image-progress-fill" style="width: ${fundedPercent}%;"></div>
+                        </div>
+                        <div class="fundraising-compact-card__image-progress-text" style="font-size: 13px;">
+                            <span>${fundedPercent}% raised</span>
+                            <span>$${fundsNeededFormatted} remaining need</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Content section -->
+                <div class="fundraising-compact-card__content">
+                    <div style="text-align: center; margin-bottom: var(--space-md);">
+                        <img src="https://res.cloudinary.com/the-water-project/image/upload/dpr_auto,q_auto,f_auto,w_80/site/twp-drop.png" 
+                             alt="" 
+                             style="width: auto; height: 30px; max-width: 30px; object-fit: contain; margin-bottom: 8px;">
+                        <h2 class="fundraising-compact-card__title" style="margin: 0;">Give Water. Give Hope.</h2>
+                    </div>
+                    <p class="fundraising-compact-card__subtitle" style="text-align: center; margin: 0 20px;">
+                        Bring clean, safe water to <strong>${project.served} people</strong> waiting in <strong>${project.countryName}</strong>.
+                    </p>
+                    
+                    
+                    <!-- Impact message -->
+                    <div class="fundraising-compact-card__impact">
+                        <div class="fundraising-compact-card__impact-content">
+                            <div class="fundraising-compact-card__impact-title">Your Impact</div>
+                            <div class="fundraising-compact-card__impact-text">
+                                Your gift will provide a <strong>${project.projectTypeName || 'water project'}</strong> in <a href="${project.project_url}" target="_blank" style="color: var(--primary, #2D6484); font-weight: var(--font-weight-medium, 500); background: linear-gradient(transparent 60%, rgba(45, 100, 132, 0.2) 0); padding: 0 2px; text-decoration: none;"><strong>${project.project_name}</strong></a>.
+                            </div>
+                        </div>
+                    </div>
+                    
+                    ${story ? `
+                    <!-- Story quote -->
+                    <div class="fundraising-compact-card__story">
+                        <p class="fundraising-compact-card__story-quote">${story.quote}</p>
+                        <p class="fundraising-compact-card__story-author">— ${story.author}</p>
+                    </div>
+                    ` : ''}
+                    
+                    
+                    <!-- CTA -->
+                    <div class="fundraising-compact-card__cta">
+                        <a href="${donationUrl}" 
+                           class="fundraising-compact-card__button fundraising-compact-card__button--small">
+                            <span>Give Now</span>
+                        </a>
+                        ${project.statistics ? `
+                        <div style="margin-top: 20px;">
+                            <a href="#rtf" 
+                               onclick="event.preventDefault(); var rtfElement = document.getElementById('rtf'); if(rtfElement) { rtfElement.scrollIntoView({behavior: 'smooth'}); } return false;"
+                               style="color: var(--text-secondary); font-size: 12px; text-decoration: none; opacity: 0.7; transition: opacity 0.2s; cursor: pointer; display: inline-block;"
+                               onmouseover="this.style.opacity='0.9'; this.style.textDecoration='underline';"
+                               onmouseout="this.style.opacity='0.7'; this.style.textDecoration='none';">
+                                Project ${project.statistics.current_next_count} of ${project.statistics.total_planned} | See All
+                            </a>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Project Details Modal -->
+            <div id="modal_${widgetInstanceId}" class="twp-project-modal">
+                <div class="twp-modal-backdrop" onclick="window['closeProjectModal_${widgetInstanceId}'](event)"></div>
+                <div class="twp-modal-content">
+                    <button class="twp-modal-close" onclick="window['closeProjectModal_${widgetInstanceId}'](event)" aria-label="Close modal">&times;</button>
+                    <div class="twp-modal-body">
+                        <div class="twp-modal-image-container">
+                            <img src="${heroImageUrl}" alt="${project.project_name}" class="twp-modal-image">
+                            ${project.projectTypePic ? `
+                                <div class="twp-modal-type-icon">
+                                    <img src="${project.projectTypePic.startsWith('http') ? project.projectTypePic : 'https://thewaterproject.org' + project.projectTypePic}" alt="${project.projectTypeName || 'Project type'}">
+                                </div>
+                            ` : ''}
+                        </div>
+                        <div class="twp-modal-text-content">
+                            <h2 class="twp-modal-title">${project.project_name}</h2>
+                            <div class="twp-modal-description">
+                                ${projectDescription}
+                            </div>
+                            <div class="twp-modal-actions">
+                                <a href="${project.project_url}" target="_blank" class="twp-modal-btn twp-modal-btn-primary">See Project Dashboard</a>
+                                <button onclick="window['closeProjectModal_${widgetInstanceId}'](event)" class="twp-modal-btn twp-modal-btn-secondary">Close</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Simple Mapbox Static Map Modal -->
+            ${project.latitude && project.longitude ? `
+            <div id="map_modal_${widgetInstanceId}" class="twp-project-modal">
+                <div class="twp-modal-backdrop" onclick="window['closeMapModal_${widgetInstanceId}'](event)"></div>
+                <div class="twp-modal-content" style="max-width: 700px;">
+                    <button class="twp-modal-close" onclick="window['closeMapModal_${widgetInstanceId}'](event)" aria-label="Close map">&times;</button>
+                    <div style="padding: 20px; text-align: center;">
+                        <h3 style="margin: 0 0 15px 0; color: var(--text-primary); font-size: 18px; font-weight: 600;">
+                            ${project.project_name}
+                        </h3>
+                        <img src="https://api.mapbox.com/styles/v1/mapbox/streets-v11/static/pin-l-water+2D6484(${parseFloat(project.longitude)},${parseFloat(project.latitude)})/${parseFloat(project.longitude)},${parseFloat(project.latitude)},5,0/660x400@2x?access_token=pk.eyJ1IjoidHdwbWFwcyIsImEiOiJjbHg0dDFsajkxYTU2MnFxNnJsZng3bDYwIn0.IuNRYkpy8qoMcxzSQ47Mcg" 
+                             alt="${project.project_name} location in ${project.countryName}"
+                             style="width: 100%; height: auto; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.15);">
+                        <p style="margin: 15px 0 5px 0; color: var(--text-secondary); font-size: 14px;">
+                            <i class="fa fa-map-marker-alt" style="color: #2D6484;"></i> ${project.countryName}
+                        </p>
+                        <p style="margin: 0; color: var(--text-muted); font-size: 12px;">
+                            Coordinates: ${parseFloat(project.latitude).toFixed(4)}, ${parseFloat(project.longitude).toFixed(4)}
+                        </p>
+                    </div>
+                </div>
+            </div>
+            ` : ''}
+        `;
+    }
+    
+    // Create loading HTML
+    function createLoadingHTML() {
+        return `
+            <div class="twp-loading">
+                <div class="twp-loading-spinner"></div>
+                <p>Locating next<br>water project</p>
+            </div>
+        `;
+    }
+    
+    // Create error HTML
+    function createErrorHTML(message) {
+        return `
+            <div class="twp-error">
+                <i class="fas fa-exclamation-triangle" style="font-size: 24px; margin-bottom: 10px; display: block;"></i>
+                <p><strong>Unable to load project</strong></p>
+                <p style="font-size: 12px; margin-top: 5px;">${message}</p>
+                <button onclick="TWPProjectWidget.refresh()" class="twp-btn twp-btn-secondary" style="margin-top: 10px;">
+                    <i class="fas fa-redo"></i> Try Again
+                </button>
+            </div>
+        `;
+    }
+    
+    // Fetch project data from API
+    async function fetchProjectData() {
+        try {
+            const response = await fetch(API_URL, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                },
+                cache: 'no-cache'
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            if (!data.success || !data.project) {
+                throw new Error('Invalid API response');
+            }
+            
+            // Include statistics if available
+            const result = {
+                ...data.project,
+                statistics: data.statistics || null
+            };
+            
+            return result;
+        } catch (error) {
+            console.error('Error fetching project data:', error);
+            throw error;
+        }
+    }
+    
+    // Update widget with new data
+    async function updateWidget() {
+        const container = document.getElementById(WIDGET_ID);
+        if (!container) {
+            console.warn('TWP Project Widget: Container element not found');
+            return;
+        }
+        
+        // Show loading state
+        container.innerHTML = createLoadingHTML();
+        
+        try {
+            const project = await fetchProjectData();
+            container.innerHTML = createHeroHTML(project);
+            
+            // Setup modal functions after HTML is inserted
+            const widgetInstanceId = 'widget_' + Math.random().toString(36).substr(2, 9);
+            const widgetElement = container.querySelector('.fundraising-compact-card');
+            if (widgetElement) {
+                const actualId = widgetElement.id;
+                
+                // Add modal open function
+                window['openProjectModal_' + actualId] = function(event) {
+                    if (event) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    }
+                    const modal = document.getElementById('modal_' + actualId);
+                    if (modal) {
+                        modal.classList.add('active');
+                        document.body.style.overflow = 'hidden';
+                    }
+                };
+                
+                // Add modal close function
+                window['closeProjectModal_' + actualId] = function(event) {
+                    if (event) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    }
+                    const modal = document.getElementById('modal_' + actualId);
+                    if (modal) {
+                        modal.classList.remove('active');
+                        document.body.style.overflow = '';
+                    }
+                };
+                
+                // Add map modal open function
+                window['openMapModal_' + actualId] = function(event) {
+                    if (event) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    }
+                    const modal = document.getElementById('map_modal_' + actualId);
+                    if (modal) {
+                        modal.classList.add('active');
+                        document.body.style.overflow = 'hidden';
+                    }
+                };
+                
+                // Add map modal close function
+                window['closeMapModal_' + actualId] = function(event) {
+                    if (event) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    }
+                    const modal = document.getElementById('map_modal_' + actualId);
+                    if (modal) {
+                        modal.classList.remove('active');
+                        document.body.style.overflow = '';
+                    }
+                };
+                
+                // Close modal on background click
+                const modal = document.getElementById('modal_' + actualId);
+                if (modal) {
+                    modal.addEventListener('click', function(e) {
+                        if (e.target === modal) {
+                            window['closeProjectModal_' + actualId](e);
+                        }
+                    });
+                    
+                    // Also close on ESC key
+                    document.addEventListener('keydown', function(e) {
+                        if (e.key === 'Escape' && modal.classList.contains('active')) {
+                            window['closeProjectModal_' + actualId](e);
+                        }
+                    });
+                    
+                    // Process the description content after it's in the DOM
+                    const descriptionEl = modal.querySelector('.twp-modal-description');
+                    if (descriptionEl) {
+                        // Process all images
+                        const images = descriptionEl.querySelectorAll('img');
+                        images.forEach(img => {
+                            // Ensure src attribute is properly set
+                            if (!img.src && img.dataset.src) {
+                                img.src = img.dataset.src;
+                            }
+                            
+                            // Fix relative URLs
+                            if (img.src && !img.src.startsWith('http')) {
+                                img.src = 'https://thewaterproject.org' + img.src;
+                            }
+                            
+                            // Optimize Cloudinary URLs
+                            if (img.src && img.src.includes('cloudinary.com')) {
+                                img.src = img.src.replace(/\/upload\/[^\/]*\//, '/upload/c_limit,w_550,q_auto:good,f_auto/');
+                            }
+                        });
+                        
+                        // Process all links to open in new tab
+                        const links = descriptionEl.querySelectorAll('a');
+                        links.forEach(link => {
+                            link.target = '_blank';
+                            link.rel = 'noopener noreferrer';
+                            
+                            // Fix relative URLs
+                            if (link.href && !link.href.startsWith('http')) {
+                                link.href = 'https://thewaterproject.org' + link.href;
+                            }
+                        });
+                        
+                        // Clean up excessive line breaks
+                        descriptionEl.innerHTML = descriptionEl.innerHTML
+                            .replace(/(<br\s*\/?>){3,}/gi, '<br><br>')
+                            .replace(/&nbsp;/g, ' ');
+                    }
+                }
+            }
+            
+            // Store last successful update time
+            container.setAttribute('data-last-update', new Date().toISOString());
+            
+        } catch (error) {
+            container.innerHTML = createErrorHTML(error.message);
+        }
+    }
+    
+    // Initialize widget
+    function initWidget() {
+        // Inject styles
+        injectStyles();
+        
+        // Find or create container
+        let container = document.getElementById(WIDGET_ID);
+        
+        if (!container) {
+            // If no container exists, create one at current script location
+            const script = document.currentScript || document.scripts[document.scripts.length - 1];
+            container = document.createElement('div');
+            container.id = WIDGET_ID;
+            container.className = 'twp-compact-container';
+            container.style.minHeight = '600px'; // Prevent FOUT
+            script.parentNode.insertBefore(container, script.nextSibling);
+        }
+        
+        // Ensure container has the proper class and min-height
+        if (!container.classList.contains('twp-compact-container')) {
+            container.classList.add('twp-compact-container');
+        }
+        if (!container.style.minHeight) {
+            container.style.minHeight = '600px'; // Ensure min-height is set
+        }
+        
+        // Show loading state immediately to prevent FOUT and CLS
+        if (!container.innerHTML || container.innerHTML.trim() === '') {
+            container.innerHTML = createLoadingHTML();
+        }
+        
+        // Initial load
+        updateWidget();
+        
+        // Set up focus-based refresh with cooldown
+        let lastRefreshTime = Date.now();
+        let hasFocus = !document.hidden;
+        
+        // Refresh when page gains focus, but only if 5 minutes have passed
+        function handleVisibilityChange() {
+            const now = Date.now();
+            const timeSinceLastRefresh = now - lastRefreshTime;
+            
+            if (!document.hidden && !hasFocus && timeSinceLastRefresh >= REFRESH_INTERVAL) {
+                // Page just gained focus and enough time has passed
+                updateWidget();
+                lastRefreshTime = now;
+            }
+            
+            hasFocus = !document.hidden;
+        }
+        
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        
+        // Also support older browsers
+        window.addEventListener('focus', function() {
+            const now = Date.now();
+            if (now - lastRefreshTime >= REFRESH_INTERVAL) {
+                updateWidget();
+                lastRefreshTime = now;
+            }
+        });
+    }
+    
+    // Public API
+    window.TWPProjectWidget = {
+        refresh: updateWidget,
+        init: initWidget,
+        setRefreshInterval: function(minutes) {
+            clearInterval(window.TWPProjectWidget._intervalId);
+            const ms = minutes * 60 * 1000;
+            window.TWPProjectWidget._intervalId = setInterval(updateWidget, ms);
+        }
+    };
+    
+    // Auto-initialize when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initWidget);
+    } else {
+        initWidget();
+    }
+    
+})();

@@ -1,0 +1,619 @@
+// Constants
+const MAPBOX_ACCESS_TOKEN = 'pk.eyJ1IjoidHdwbWFwcyIsImEiOiJjbHg0dDFsajkxYTU2MnFxNnJsZng3bDYwIn0.IuNRYkpy8qoMcxzSQ47Mcg';
+const GEOJSON_URL = 'https://thewaterproject.org/dataSync/geojson.geojson';
+const EARTH_CIRCUMFERENCE = 40075; // Earth's circumference in kilometers
+
+// State
+let useDynamicRadius = false;
+let minimumOpacity = 1;
+let isSatellite = false;
+let currentPopup = null;
+let exploreButton = null; // New variable to store the explore button
+let mapInteractionEnabled = false;
+
+// Initialize map
+mapboxgl.accessToken = MAPBOX_ACCESS_TOKEN;
+const map = new mapboxgl.Map({
+    container: 'map',
+    style: 'mapbox://styles/mapbox/streets-v11',
+    center: [29.023559, 1.906193],
+    zoom: 2.5,
+    dragPan: false,  // Disable panning
+    scrollZoom: false,  // Disable scroll zoom
+    doubleClickZoom: false,  // Disable double click zoom
+    touchZoomRotate: false  // Disable touch zoom/rotate
+});
+
+// DOM Elements
+const legend = document.getElementById('legend');
+const showLegendBtn = document.getElementById('showLegendBtn');
+const closeLegendBtn = document.getElementById('closeLegendBtn');
+const showRadiusBtn = document.getElementById('showRadiusBtn');
+const toggleMapTypeButton = document.getElementById('toggleMapTypeButton');
+const radiusText = document.getElementById('radius-text');
+
+// Event Listeners
+map.on('load', initializeMap);
+function debounce(func, wait){
+    let timeoutId;
+    return function(){
+        const context = this, args = arguments;
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(function(){ func.apply(context, args); }, wait);
+    };
+}
+map.on('zoom', debounce(updateCircleRadius, 100));
+map.on('zoom', toggleRadiusButtonVisibility);
+showLegendBtn.addEventListener('click', showLegend);
+closeLegendBtn.addEventListener('click', closeLegend);
+showRadiusBtn.addEventListener('click', toggleRadius);
+toggleMapTypeButton.addEventListener('click', toggleMapType);
+
+// Functions
+async function initializeMap() {
+    try {
+        await loadClusterImage();
+        await addGeoJSONSource();
+        addLayers();
+        addEventListeners();
+        addScaleControl();
+        addExploreButton();
+        setupAccessibility();
+        setupResponsiveness();
+        addMapInteractionListeners(); // New function call
+    } catch (error) {
+        console.error('Error initializing map:', error);
+        showErrorMessage('Failed to initialize map. Please try refreshing the page.');
+    }
+}
+
+function loadClusterImage() {
+    return new Promise((resolve, reject) => {
+        map.loadImage("../images/monitor_drop.png", (error, image) => {
+            if (error) {
+                reject(error);
+            } else {
+                if (!map.hasImage('water')) {
+                    map.addImage('water', image);
+                }
+                resolve();
+            }
+        });
+    });
+}
+
+async function addGeoJSONSource() {
+    try {
+        const response = await fetch(GEOJSON_URL, { cache: 'no-store' });
+        let data;
+        if (!response.ok) {
+            console.warn('GeoJSON fetch failed with status', response.status, '- loading empty dataset (dev fallback).');
+            data = { type: 'FeatureCollection', features: [] };
+        } else {
+            try {
+                data = await response.json();
+            } catch (parseError) {
+                console.warn('GeoJSON parse error - loading empty dataset (dev fallback).', parseError);
+                data = { type: 'FeatureCollection', features: [] };
+            }
+        }
+        map.addSource('water_points', {
+            type: 'geojson',
+            data: data,
+            cluster: true,
+            clusterMaxZoom: 8,
+            clusterRadius: 25
+        });
+    } catch (error) {
+        console.error('Error loading GeoJSON:', error);
+        // Final fallback to keep the map usable in development
+        try {
+            map.addSource('water_points', {
+                type: 'geojson',
+                data: { type: 'FeatureCollection', features: [] },
+                cluster: true,
+                clusterMaxZoom: 8,
+                clusterRadius: 25
+            });
+        } catch (e) {}
+    }
+}
+
+function addLayers() {
+    // Check if layers already exist and remove them if they do
+    ['clusters', 'cluster-count', 'unclustered-point'].forEach(layerId => {
+        if (map.getLayer(layerId)) {
+            map.removeLayer(layerId);
+        }
+    });
+
+    // Clusters layer
+    map.addLayer({
+        id: 'clusters',
+        type: 'symbol',
+        source: 'water_points',
+        filter: ['has', 'point_count'],
+        layout: {
+            'icon-image': 'water',
+            'icon-size': 1.2,
+            'icon-allow-overlap': true
+        }
+    });
+
+    // Cluster count layer
+    map.addLayer({
+        id: 'cluster-count',
+        type: 'symbol',
+        source: 'water_points',
+        filter: ['has', 'point_count'],
+        layout: {
+            'text-field': ['get', 'point_count_abbreviated'],
+            'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
+        },
+        paint: {
+            "text-color": "#ffffff",
+        }
+    });
+
+    // Unclustered point layer
+    map.addLayer({
+        id: 'unclustered-point',
+        type: 'circle',
+        source: 'water_points',
+        filter: ['!', ['has', 'point_count']],
+        paint: {
+            'circle-color': [
+                'match',
+                ['get', 'marker-color'],
+                '#2E86C1', '#2E86C1',
+                '#F1C40F', '#F1C40F',
+                '#CB4335', '#CB4335',
+                "#D2D1CD", '#D2D1CD',
+                "#D2D1CD"
+            ],
+            'circle-radius': calculateCircleRadius(map.getZoom()),
+            'circle-stroke-width': 1,
+            'circle-stroke-color': '#fff',
+            'circle-opacity': [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                9, 1,
+                20, minimumOpacity
+            ]
+        }
+    });
+}
+
+function addEventListeners() {
+    map.on('mouseenter', 'unclustered-point', () => {
+        map.getCanvas().style.cursor = 'pointer';
+    });
+
+    map.on('mouseleave', 'unclustered-point', () => {
+        map.getCanvas().style.cursor = '';
+    });
+
+    map.on('click', 'clusters', handleClusterClick);
+    map.on('click', 'unclustered-point', handlePointClick);
+
+    map.on('click', (e) => {
+        console.log('Map clicked');
+        const features = map.queryRenderedFeatures(e.point, {
+            layers: ['clusters', 'unclustered-point']
+        });
+        if (features.length === 0 && currentPopup) {
+            currentPopup.remove();
+            currentPopup = null;
+        }
+    });
+}
+
+function addScaleControl() {
+    const scale = new mapboxgl.ScaleControl({
+        maxWidth: 80,
+        unit: 'metric'
+    });
+    map.addControl(scale, 'bottom-left');
+}
+
+function handleClusterClick(e) {
+    const features = map.queryRenderedFeatures(e.point, {
+        layers: ['clusters']
+    });
+    const clusterId = features[0].properties.cluster_id;
+    map.getSource('water_points').getClusterExpansionZoom(
+        clusterId,
+        (err, zoom) => {
+            if (err) {
+                console.error('Error expanding cluster:', err);
+                return;
+            }
+
+            map.easeTo({
+                center: features[0].geometry.coordinates,
+                zoom: zoom
+            });
+        }
+    );
+}
+
+function handlePointClick(e) {
+    console.log('handlePointClick called', e);
+
+    // Increase the buffer size, especially for mobile devices
+    const buffer = isMobileDevice() ? 40 : 30;
+    const bbox = [
+        [e.point.x - buffer, e.point.y - buffer],
+        [e.point.x + buffer, e.point.y + buffer]
+    ];
+
+    const features = map.queryRenderedFeatures(bbox, {
+        layers: ['unclustered-point']
+    });
+
+    console.log('Features found:', features);
+
+    if (features.length) {
+        console.log('Feature selected:', features[0]);
+
+        if (currentPopup) {
+            currentPopup.remove();
+        }
+
+        const feature = features[0];
+        const coordinates = feature.geometry.coordinates.slice();
+
+        while (Math.abs(e.lngLat.lng - coordinates[0]) > 180) {
+            coordinates[0] += e.lngLat.lng > coordinates[0] ? 360 : -360;
+        }
+
+        currentPopup = new mapboxgl.Popup({
+            closeButton: true,
+            closeOnClick: true,
+            className: 'custom-popup'
+        })
+            .setLngLat(coordinates)
+            .setHTML(createPopupContent(feature.properties))
+            .addTo(map);
+
+        console.log('Popup created and added to map');
+
+        setTimeout(() => {
+            const popupHeight = document.querySelector('.mapboxgl-popup-content').offsetHeight;
+            const popupWidth = document.querySelector('.mapboxgl-popup-content').offsetWidth;
+            
+            const cameraPadding = {top: 70, bottom: 30, left: 50, right: 50};
+            
+            const southWest = map.project([coordinates[0], coordinates[1]]);
+            southWest.y += popupHeight / 2;
+            
+            const northEast = map.project([coordinates[0], coordinates[1]]);
+            northEast.y -= popupHeight / 2;
+            northEast.x += popupWidth;
+            
+            const offsetY = -popupHeight / 2 - cameraPadding.bottom;
+            const offsetX = popupWidth / 2 + cameraPadding.right;
+            
+            map.easeTo({
+                center: map.unproject([
+                    (southWest.x + northEast.x) / 2 - offsetX,
+                    (southWest.y + northEast.y) / 2 - offsetY
+                ]),
+                padding: cameraPadding,
+                duration: 300
+            });
+        }, 50);
+
+        currentPopup.on('close', () => {
+            currentPopup = null;
+            console.log('Popup closed');
+        });
+
+        trackEvent('map_click', 'map_interaction', feature.properties.Name);
+    } else {
+        console.log('No features found at click location');
+    }
+}
+
+// Add this new function to detect mobile devices
+function isMobileDevice() {
+    return (typeof window.orientation !== "undefined") || (navigator.userAgent.indexOf('IEMobile') !== -1);
+}
+
+function createPopupContent(properties) {
+    return `
+        <div class="popup-content">
+            <h3>${properties.Name}</h3>
+            <a href="https://thewaterproject.org/community/projects/${properties.CountrySlug}/${properties.Slug}" target="_blank" rel="noopener noreferrer">
+                <img src="${properties.CommunityPhoto}" alt="Community photo of ${properties.Name}" width="220" height="147">
+            </a>
+            <p>${properties.Summary}</p>
+            <a href="https://thewaterproject.org/community/projects/${properties.CountrySlug}/${properties.Slug}" target="_blank" rel="noopener noreferrer" class="project-link">See the full Project Report</a>
+            <div class="project-details">
+                <img src="https://thewaterproject.org/images/twp-resp-logo.png" alt="The Water Project logo" width="75">
+                <p>
+                    ProjectID: ${properties.ProjectId}<br>
+                    Number Served: ${properties.NumberServed}<br>
+                    Original In-Service Date: ${properties.InstallDate}
+                </p>
+            </div>
+        </div>
+    `;
+}
+
+function trackEvent(name, category, label) {
+    try {
+        if (typeof gtag === 'function') {
+            gtag('event', name, {
+                'category': category,
+                'label': label,
+                'project_id': category === 'popup' ? label?.projectId ?? null : null,
+                'slug': category === 'popup' ? label?.slug ?? null : null
+            });
+        }
+    } catch (e) {}
+
+    try {
+        if (typeof _paq !== 'undefined' && Array.isArray(_paq)) {
+            _paq.push(['trackEvent', category, label, name]);
+        }
+    } catch (e) {}
+}
+
+function closeLegend() {
+    legend.style.display = 'none';
+    showLegendBtn.style.display = 'block';
+}
+
+function showLegend() {
+    legend.style.display = 'block';
+    showLegendBtn.style.display = 'none';
+}
+
+function toggleRadius() {
+    useDynamicRadius = !useDynamicRadius;
+    if (useDynamicRadius) {
+        minimumOpacity = 0.01;
+        updateCircleRadius();
+        map.on('zoom', debounce(updateCircleRadius, 100));
+        showRadiusBtn.innerHTML = 'Hide 1km Service Area';
+        radiusText.style.display = 'block';
+    } else {
+        map.off('zoom', updateCircleRadius);
+        minimumOpacity = 1;
+        map.setPaintProperty('unclustered-point', 'circle-radius', 6);
+        map.setPaintProperty('unclustered-point', 'circle-opacity', minimumOpacity);
+        showRadiusBtn.innerHTML = 'Show 1km Service Area';
+        radiusText.style.display = 'none';
+    }
+}
+
+function updateCircleRadius() {
+    const radius = useDynamicRadius ? calculateCircleRadius(map.getZoom()) : 6;
+    const opacity = useDynamicRadius ? [
+        'interpolate',
+        ['linear'],
+        ['zoom'],
+        9, 1,
+        20, minimumOpacity
+    ] : minimumOpacity;
+
+    map.setPaintProperty('unclustered-point', 'circle-radius', radius);
+    map.setPaintProperty('unclustered-point', 'circle-opacity', opacity);
+}
+
+function toggleRadiusButtonVisibility() {
+    const zoomLevel = map.getZoom();
+    showRadiusBtn.style.display = zoomLevel < 10 ? 'none' : 'block';
+}
+
+function toggleMapType() {
+    if (currentPopup) {
+        currentPopup.remove();
+        currentPopup = null;
+    }
+
+    const newStyle = isSatellite 
+        ? 'mapbox://styles/mapbox/streets-v11'
+        : 'mapbox://styles/mapbox/satellite-streets-v12';
+
+    map.once('styledata', function() {
+        Promise.all([addGeoJSONSource(), loadClusterImage()])
+            .then(() => {
+                addLayers();
+                addEventListeners();
+                
+                // Always update circle radius to ensure consistency
+                updateCircleRadius();
+                
+                // If dynamic radius is enabled, make sure it's reflected in the UI
+                if (useDynamicRadius) {
+                    showRadiusBtn.innerHTML = 'Hide 1km Service Area';
+                    radiusText.style.display = 'block';
+                } else {
+                    showRadiusBtn.innerHTML = 'Show 1km Service Area';
+                    radiusText.style.display = 'none';
+                }
+            })
+            .catch(error => {
+                console.error('Error reloading layers:', error);
+                showErrorMessage('Failed to reload map data. Please try refreshing the page.');
+            });
+    });
+
+    map.setStyle(newStyle);
+
+    isSatellite = !isSatellite;
+    toggleMapTypeButton.innerText = isSatellite ? 'Switch to Streets' : 'Switch to Satellite';
+}
+
+function calculateCircleRadius(zoom) {
+    const km = 1;
+    const metersPerPixel = (EARTH_CIRCUMFERENCE * 1000) / (256 * Math.pow(2, zoom));
+    const radius = (km * 1000) / metersPerPixel;
+    return Math.max(radius, 6);
+}
+
+function setupAccessibility() {
+    showLegendBtn.setAttribute('aria-label', 'Show legend');
+    closeLegendBtn.setAttribute('aria-label', 'Close legend');
+    showRadiusBtn.setAttribute('aria-label', 'Toggle 1km service area visibility');
+    toggleMapTypeButton.setAttribute('aria-label', 'Switch map type');
+    if (exploreButton) { // Check if exploreButton exists before setting attribute
+        exploreButton.setAttribute('aria-label', 'Explore a program area');
+    }
+}
+
+function setupResponsiveness() {
+    const mobileMediaQuery = window.matchMedia("(max-width: 768px)");
+    handleMobileLayout(mobileMediaQuery);
+    mobileMediaQuery.addListener(handleMobileLayout);
+}
+
+function handleMobileLayout(mq) {
+    if (mq.matches) {
+        legend.style.width = '100%';
+        legend.style.bottom = '0';
+        legend.style.right = '0';
+    } else {
+        legend.style.width = '';
+        legend.style.bottom = '35px';
+        legend.style.right = '10px';
+    }
+}
+
+function showErrorMessage(message) {
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'error-message';
+    errorDiv.textContent = message;
+    document.body.appendChild(errorDiv);
+}
+
+// New function to add the explore button
+function addExploreButton() {
+    exploreButton = document.createElement('button');
+    exploreButton.id = 'exploreButton';
+    exploreButton.innerHTML = 'Click to Explore a Program Area';
+    exploreButton.className = 'mapboxgl-ctrl-group mapboxgl-ctrl';
+    exploreButton.style.position = 'absolute';
+    exploreButton.style.top = '50%';
+    exploreButton.style.left = '50%';
+    exploreButton.style.transform = 'translate(-50%, -50%)';
+    exploreButton.style.zIndex = '1';
+    exploreButton.style.padding = '10px 20px';
+    exploreButton.style.fontSize = '16px';
+    exploreButton.style.cursor = 'pointer';
+
+    exploreButton.addEventListener('click', () => {
+        // Enable map interaction
+        mapInteractionEnabled = true;
+        map.dragPan.enable();
+        map.scrollZoom.enable();
+        map.doubleClickZoom.enable();
+        map.touchZoomRotate.enable();
+        
+        map.flyTo({
+            center: [34.7, 0.2],
+            zoom: 10,
+            duration: 1900
+        });
+        removeExploreButton();
+        trackEvent('map_click', 'button', 'Explore Program Area');
+    });
+
+    map.getContainer().appendChild(exploreButton);
+}
+
+// New function to remove the explore button
+function removeExploreButton() {
+    if (exploreButton && exploreButton.parentNode) {
+        exploreButton.parentNode.removeChild(exploreButton);
+        exploreButton = null;
+    }
+}
+
+// New function to add map interaction listeners
+function addMapInteractionListeners() {
+    map.on('movestart', (e) => {
+        if (!mapInteractionEnabled && !e.originalEvent) {
+            // Allow programmatic movements (like initial load)
+            return;
+        }
+        if (!mapInteractionEnabled) {
+            // Prevent user-initiated movements
+            if (e && e.originalEvent && typeof e.originalEvent.preventDefault === 'function') {
+                e.originalEvent.preventDefault();
+            } else {
+                try { map.stop(); } catch (err) {}
+            }
+            return;
+        }
+        removeExploreButton();
+    });
+    
+    map.on('zoomstart', (e) => {
+        if (!mapInteractionEnabled) {
+            if (e && e.originalEvent && typeof e.originalEvent.preventDefault === 'function') {
+                e.originalEvent.preventDefault();
+            } else {
+                try { map.stop(); } catch (err) {}
+            }
+            return;
+        }
+        removeExploreButton();
+    });
+    
+    map.on('click', (e) => {
+        if (!mapInteractionEnabled) {
+            // Still allow clicks on the explore button
+            const clickedElement = e.originalEvent.target;
+            if (clickedElement !== exploreButton) {
+                if (e && e.originalEvent && typeof e.originalEvent.preventDefault === 'function') {
+                    e.originalEvent.preventDefault();
+                }
+                return;
+            }
+        }
+        removeExploreButton();
+    });
+}
+
+// Initialize Matomo tracker
+function initializeMatomoTracker() {
+    var waitForTrackerCount = 0;
+    function matomoWaitForTracker() {
+        if (typeof _paq === 'undefined') {
+            if (waitForTrackerCount < 40) {
+                setTimeout(matomoWaitForTracker, 250);
+                waitForTrackerCount++;
+            }
+        } else {
+            document.addEventListener("cookieyes_consent_update", function (eventData) {
+                const data = eventData.detail;
+                consentSet(data);
+            });   
+        }
+    }
+    
+    function consentSet(data) {
+        if (data.accepted.includes("analytics")) {
+            _paq.push(['setCookieConsentGiven']);
+            _paq.push(['setConsentGiven']);
+        } else {
+            _paq.push(['forgetCookieConsentGiven']);
+            _paq.push(['forgetConsentGiven']);
+        }
+    }
+    
+    document.addEventListener('DOMContentLoaded', matomoWaitForTracker);
+}
+
+// Initialize Matomo tracker
+initializeMatomoTracker();
+
+// Call setupAccessibility and setupResponsiveness after the DOM is fully loaded
+document.addEventListener('DOMContentLoaded', () => {
+    setupAccessibility();
+    setupResponsiveness();
+});

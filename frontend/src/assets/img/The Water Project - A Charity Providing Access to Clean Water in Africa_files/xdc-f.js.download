@@ -1,0 +1,226 @@
+/**
+ * @module TrackingModule
+ * @description A vanilla JavaScript module for tracking user interactions and page views
+ * @version 1.3.0
+ */
+
+const TrackingModule = (function() {
+	'use strict';
+
+	/**
+	 * @private
+	 * @type {Object}
+	 * @property {string|null} userId - The current user's ID
+	 * @property {string} apiUrl - Base URL for tracking API endpoints
+	 * @property {string|null} anonymousId - The anonymous user ID
+	 * @property {string|null} sessionId - The current session ID
+	 */
+	const config = {
+		userId: null,
+		anonymousId: null,
+		sessionId: null,
+		apiUrl: '/community/wp-json/twp/v1/'
+	};
+
+	/**
+	 * UUID v4 validation pattern
+	 * @private
+	 * @constant {RegExp}
+	 */
+	const UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+	/**
+	 * Generates a UUID v4
+	 * @private
+	 * @returns {string}
+	 */
+	function generateUUID() {
+		return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+			const r = Math.random() * 16 | 0;
+			const v = c === 'x' ? r : (r & 0x3 | 0x8);
+			return v.toString(16);
+		});
+	}
+
+	/**
+	 * Validates if a UUID is properly formatted (UUID v4)
+	 * @private
+	 * @param {string} uuid - The UUID to validate
+	 * @returns {boolean} True if valid UUID v4 format, false otherwise
+	 */
+	function isValidUUID(uuid) {
+		if (!uuid || typeof uuid !== 'string') {
+			return false;
+		}
+		return UUID_V4_PATTERN.test(uuid.trim());
+	}
+
+	/**
+	 * Gets or creates an anonymous ID with validation
+	 * @private
+	 * @returns {string}
+	 */
+	function getAnonymousId() {
+		if (!config.anonymousId) {
+			config.anonymousId = TWPCookie.getCookie('twp_anonymous_id');
+			
+			// Validate the cookie value
+			if (config.anonymousId && !isValidUUID(config.anonymousId)) {
+				console.warn('[TWP Security] Invalid anonymous_id in cookie, regenerating');
+				config.anonymousId = null;
+			}
+			
+			// Generate new UUID if none exists or was invalid
+			if (!config.anonymousId) {
+				config.anonymousId = generateUUID();
+				TWPCookie.setCookie('twp_anonymous_id', config.anonymousId, 365);
+			}
+		}
+		return config.anonymousId;
+	}
+
+	/**
+	 * Gets or creates a session ID with validation
+	 * @private
+	 * @returns {string}
+	 */
+	function getSessionId() {
+		if (!config.sessionId) {
+			config.sessionId = TWPCookie.getCookie('twp_session_id');
+			
+			// Validate the cookie value
+			if (config.sessionId && !isValidUUID(config.sessionId)) {
+				console.warn('[TWP Security] Invalid session_id in cookie, regenerating');
+				config.sessionId = null;
+			}
+			
+			// Generate new UUID if none exists or was invalid
+			if (!config.sessionId) {
+				config.sessionId = generateUUID();
+				TWPCookie.setCookie('twp_session_id', config.sessionId, 1); // 1 day expiry
+			}
+		}
+		return config.sessionId;
+	}
+
+	/**
+	 * Initializes the tracking module
+	 * @public
+	 * @returns {void}
+	 */
+	function init() {
+		// Get userId from the cookie management module
+		config.userId = TWPCookie.getUserId();
+		
+		// Always initialize anonymous tracking
+		getAnonymousId();
+		getSessionId();
+		
+		// Initialize GCLID tracking
+		TWPCookie.getGclid();
+		
+		setupEventListeners();
+		trackPageView();
+	}
+
+	/**
+	 * Sets up event listeners for tracking custom events
+	 * @private
+	 * @returns {void}
+	 */
+	function setupEventListeners() {
+		document.querySelectorAll('[data-twp-track]').forEach(element => {
+			element.addEventListener('click', trackCustomEvent);
+		});
+	}
+
+	/**
+	 * Tracks page view events
+	 * @private
+	 * @returns {void}
+	 */
+	function trackPageView() {
+		const eventData = {
+			url: window.location.href,
+			title: document.title,
+			referrer: document.referrer
+		};
+
+		// Add GCLID if available
+		const gclid = TWPCookie.getGclid();
+		if (gclid) {
+			eventData.gclid = gclid;
+		}
+
+		sendTrackingData('page_view', eventData);
+	}
+
+	/**
+	 * Handles custom tracking events
+	 * @private
+	 * @param {Event} event - The DOM event object
+	 * @returns {void}
+	 */
+	function trackCustomEvent(event) {
+		const element = event.currentTarget;
+		const eventData = JSON.parse(element.dataset.twpTrack);
+		sendTrackingData('custom_event', eventData);
+	}
+
+	/**
+	 * Sends tracking data to the API
+	 * @private
+	 * @param {string} eventType - Type of the event being tracked
+	 * @param {Object} eventData - Data associated with the event
+	 * @returns {Promise<void>}
+	 */
+	async function sendTrackingData(eventType, eventData) {
+		const trackingData = {
+			event_type: eventType,
+			event_data: eventData
+		};
+
+		// Add user ID if available
+		if (config.userId) {
+			trackingData.user_id = config.userId;
+		} else {
+			// Add anonymous tracking data
+			trackingData.anonymous_id = getAnonymousId();
+			trackingData.session_id = getSessionId();
+		}
+
+		try {
+			const response = await fetch(`${config.apiUrl}track-event`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify(trackingData)
+			});
+
+			if (!response.ok) {
+				throw new Error(`HTTP error! status: ${response.status}`);
+			}
+
+			const data = await response.json();
+			// console.log('Event tracked successfully:', data);
+		} catch (error) {
+			console.error('Error tracking event:', error);
+		}
+	}
+
+	// Initialize when DOM is fully loaded
+	document.addEventListener('DOMContentLoaded', init);
+
+	// Public API
+	return {
+		init,
+		trackPageView,
+		sendTrackingData
+	};
+})();
+
+// Export for use in other modules if needed
+if (typeof module !== 'undefined' && module.exports) {
+	module.exports = TrackingModule;
+}
