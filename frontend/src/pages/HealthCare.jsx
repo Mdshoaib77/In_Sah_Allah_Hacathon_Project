@@ -357,7 +357,7 @@ import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 // Images
-import homeBg from "../assets/img/home.png";
+import homeBg from "../assets/img/dcc.avif";
 import aboutImg from "../assets/img/about.jpg";
 import doc1 from "../assets/img/doc1.jpg";
 import doc2 from "../assets/img/doc2.jpg";
@@ -489,7 +489,17 @@ const HealthCare = () => {
           </motion.div>
         </motion.div>
       </div> */}
-       <div className="min-h-screen flex flex-col justify-center lg:px-32 px-5 text-white bg-[url('assets/img/home.png')] bg-no-repeat bg-cover opacity-90">
+       {/* <div className="min-h-screen flex flex-col justify-center lg:px-32 px-5 text-white bg-[url('assets/img/home.png')] bg-no-repeat bg-cover opacity-90"> */}
+{/*       
+       <div 
+    className="flex flex-col justify-center min-h-screen px-5 text-white lg:px-32 opacity-90"
+    style={{ 
+        backgroundImage: `url(${homeBg})`, 
+        backgroundSize: 'cover', 
+        backgroundRepeat: 'no-repeat', 
+        backgroundPosition: 'center', 
+    }}
+>
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
@@ -521,7 +531,140 @@ const HealthCare = () => {
           <Button title="See Services" />
         </motion.div>
       </motion.div>
-    </div>
+    </div> */}
+{/* 
+    <div 
+   
+    className="flex flex-col justify-center min-h-screen px-5 text-white lg:px-32" 
+    style={{ 
+     
+        backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url(${homeBg})`, 
+        backgroundSize: 'cover', 
+        backgroundRepeat: 'no-repeat', 
+        backgroundPosition: 'center', 
+    }}
+>
+    <motion.div
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8, ease: "easeOut" }}
+        className="w-full mt-10 space-y-6 lg:w-4/5" 
+    >
+       
+        <motion.h1
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 1, ease: "easeOut", delay: 0.3 }}
+            className="text-6xl font-extrabold leading-tight text-white sm:text-7xl drop-shadow-lg"
+        >
+            Empowering Health Choices for a **Vibrant Life*.
+        </motion.h1>
+
+        
+        <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 1, delay: 0.6 }}
+            className="max-w-xl text-xl font-medium text-white sm:text-2xl"
+        >
+            We provide **accessible, reliable healthcare services** tailored to your well-being. Your health is our top priority — every step of the way.
+        </motion.p>
+
+        
+        <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.6, delay: 0.9 }}
+            className="flex flex-col pt-4 space-y-4 sm:flex-row sm:space-y-0 sm:space-x-5"
+        >
+             <button 
+              
+                className="px-8 py-3 text-lg font-bold text-white uppercase transition duration-300 bg-red-600 rounded-full shadow-xl hover:bg-red-700 hover:scale-105 focus:outline-none focus:ring-4 focus:ring-red-300"
+            >
+                See Services
+            </button>
+            
+            <button
+              
+                className="px-8 py-3 text-lg font-bold text-white uppercase transition duration-300 border-2 border-white rounded-full hover:bg-white hover:text-red-600 hover:scale-105 focus:outline-none focus:ring-4 focus:ring-white/50"
+            >
+                Book an Appointment
+            </button>
+        </motion.div>
+    </motion.div>
+</div> */}
+
+
+<div 
+    // Opacity-90 সরিয়ে একটি প্রফেশনাল ডার্ক ওভারলে যোগ করা হয়েছে
+    className="flex flex-col justify-center min-h-screen px-5 text-white lg:px-32" 
+    style={{ 
+        // Image overlay: Deep Blue/Navy Overlay (rgba(11, 47, 83, 0.7)) for a sophisticated, calming feel
+        backgroundImage: `linear-gradient(rgba(11, 47, 83, 0.75), rgba(11, 47, 83, 0.75)), url(${homeBg})`, 
+        backgroundSize: 'cover', 
+        backgroundRepeat: 'no-repeat', 
+        backgroundPosition: 'center', 
+    }}
+>
+    <motion.div
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8, ease: "easeOut" }}
+        className="w-full mt-10 space-y-6 lg:w-3/5" // কন্টেন্টকে আরও ফোকাসড করার জন্য প্রস্থ কমানো হয়েছে
+    >
+        {/* Sub-Headline: Aqua Blue (text-cyan-400) for a fresh, trustworthy feel */}
+        <motion.p
+             initial={{ opacity: 0, x: -20 }}
+             animate={{ opacity: 1, x: 0 }}
+             transition={{ duration: 0.8, delay: 0.2 }}
+             className="text-lg font-bold tracking-widest uppercase text-cyan-400"
+        >
+            Your Trusted Health Partner
+        </motion.p>
+        
+        {/* Main Heading: Crisp White, large font, with a clean look */}
+        <motion.h1
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 1, ease: "easeOut", delay: 0.4 }}
+            className="text-6xl font-extrabold leading-snug text-white sm:text-7xl"
+        >
+            Comprehensive Care for a Healthier Tomorrow
+        </motion.h1>
+
+        {/* Subtext: Slightly dimmer white for hierarchy */}
+        <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 1, delay: 0.7 }}
+            className="max-w-2xl text-xl font-normal text-gray-200 sm:text-2xl"
+        >
+            We provide expert medical guidance and accessible services, ensuring your well-being remains the central focus of our practice.
+        </motion.p>
+
+        {/* Buttons: Clean, high-impact buttons */}
+        <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.6, delay: 1 }}
+            className="flex flex-col pt-6 space-y-4 sm:flex-row sm:space-y-0 sm:space-x-5"
+        >
+             <button 
+                // Primary Button: Aqua/Cyan background for a professional look
+                className="px-8 py-3 text-lg font-bold text-gray-900 uppercase transition duration-300 rounded-lg shadow-2xl bg-cyan-400 hover:bg-cyan-500 hover:scale-105 focus:outline-none focus:ring-4 focus:ring-cyan-300"
+            >
+                Book An Appoinment
+            </button>
+            
+            {/* <button
+                 // Secondary Button: Transparent background with White border
+                className="px-8 py-3 text-lg font-bold text-white uppercase transition duration-300 border-2 border-white rounded-lg hover:bg-white hover:text-cyan-600 hover:scale-105 focus:outline-none focus:ring-4 focus:ring-white/50"
+            >
+                Explore Specialties
+            </button> */}
+        </motion.div>
+    </motion.div>
+</div>
 
       {/* About Section */}
       <div className="flex flex-col items-center justify-between gap-10 px-5 py-16 mt-12 lg:flex-row lg:px-32">

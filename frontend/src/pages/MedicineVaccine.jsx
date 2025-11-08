@@ -228,7 +228,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 // Icons from Lucide for a modern look
 import { Mail, Shield, Heart, Droplet, Users, BookOpen, X, Send, CheckCircle, AlertTriangle } from 'lucide-react'; 
-
+import VaccineBg from "../assets/img/medicine.avif";
 // --- Configuration ---
 const WEB3FORMS_ACCESS_KEY = "d8bc3a52-5209-4956-93bf-25881ea36833";
 const WEB3FORMS_ACTION_URL = "https://api.web3forms.com/submit";
@@ -517,7 +517,7 @@ const MedicineVaccine = () => {
     <div className="min-h-screen font-sans bg-gray-50">
       
       {/* 1. Header/Hero Section */}
-      <motion.header 
+      {/* <motion.header 
         className="py-16 text-white bg-red-600 sm:py-24"
         initial={{ opacity: 0, y: -50 }}
         animate={{ opacity: 1, y: 0 }}
@@ -535,7 +535,6 @@ const MedicineVaccine = () => {
               <Users className="w-5 h-5 mr-2" />
               Explore Our Campaigns
             </a>
-            {/* BUTTON 1: Support Our Mission (Hero CTA) */}
             <button 
               onClick={() => openModal('support')} 
               className={secondaryButtonClasses + " bg-transparent border-white text-white hover:bg-white hover:text-red-600"}
@@ -545,7 +544,47 @@ const MedicineVaccine = () => {
             </button>
           </div>
         </div>
-      </motion.header>
+      </motion.header> */}
+<motion.header 
+    // Removed 'bg-red-600' clas
+    className="py-16 mt-16 text-white sm:py-24"
+    initial={{ opacity: 0, y: -50 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.8 }}
+    // ONLY Image Background Styling Added (No Linear Gradient/Overlay)
+    style={{
+        // Direct image URL for background
+        backgroundImage: `url(${VaccineBg})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+        // Optional: Adding a minimum height if image fails to load
+        minHeight: '400px', 
+    }}
+>
+    <div className="px-4 mx-auto text-center max-w-7xl sm:px-6 lg:px-8">
+        <h1 className="mb-4 text-4xl font-extrabold tracking-tight sm:text-6xl">
+            Health Access for All
+        </h1>
+        <p className="max-w-3xl mx-auto mb-8 text-xl font-light sm:text-2xl">
+            Providing free, life-saving medicines and essential vaccines to underserved communities to ensure fundamental public health.
+        </p>
+        <div className="space-y-4 sm:space-y-0 sm:space-x-6">
+            <a href="#campaigns" className={buttonClasses}>
+                <Users className="w-5 h-5 mr-2" />
+                Explore Our Campaigns
+            </a>
+            <button 
+                onClick={() => openModal('support')} 
+                // Changed text color to ensure visibility against a dark/busy image background
+                className={secondaryButtonClasses + " bg-transparent border-white text-white hover:bg-white hover:text-red-600"}
+            >
+                <Droplet className="w-5 h-5 mr-2" />
+                Support Our Mission
+            </button>
+        </div>
+    </div>
+</motion.header>
 
       {/* 2. About Us Section (Unchanged) */}
       <motion.section 

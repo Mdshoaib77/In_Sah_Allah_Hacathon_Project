@@ -206,6 +206,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Mail, Shield, Heart, Droplet, Users, BookOpen } from 'lucide-react';
+import VaccineBg from "../assets/img/medibg.jpg"; 
 
 // --- Placeholder Content & Styling Configuration ---
 
